@@ -34,7 +34,7 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 2100 * 1024 * 1024, // 2.1GB max file size (extra buffer)
+    fileSize: 5100 * 1024 * 1024, // 2.1GB max file size (extra buffer)
   },
 });
 
@@ -43,12 +43,10 @@ if (!fs.existsSync("uploads/")) {
   fs.mkdirSync("uploads/");
 }
 
-const STORAGE_ZONE = process.env.STORAGE_ZONE || "learningstream";
+const STORAGE_ZONE = process.env.STORAGE_ZONE
 const STORAGE_API_KEY =
-  process.env.STORAGE_API_KEY || "3c45cde6-2010-4744-999786804a31-854b-452a";
-const BUNNY_API_URL = `https://storage.bunnycdn.com/${STORAGE_ZONE}`;
-const BUNNY_TUS_URL = `https://video.bunnycdn.com/tusupload`;
-
+  process.env.STORAGE_API_KEY
+const BUNNY_API_URL = process.env.BUNNY_API_URL
 // DNS lookup promise for network connectivity check
 const dnsLookup = promisify(dns.lookup);
 
@@ -116,12 +114,12 @@ axiosInstance.interceptors.response.use(null, async (error) => {
   return axiosInstance(config);
 });
 
-// Create video in Bunny Stream with retry logic
-
+// Improved createVideoToStorageZone function
 async function createVideoToStorageZone(
   filePath,
   storageZoneName,
-  storageApiKey
+  storageApiKey,
+  progressCallback
 ) {
   const fileName = path.basename(filePath);
   const uploadUrl = `https://storage.bunnycdn.com/${storageZoneName}/${fileName}`;
@@ -140,23 +138,46 @@ async function createVideoToStorageZone(
         continue;
       }
 
-      const fileData = fs.readFileSync(filePath);
+      // Use streaming instead of loading entire file into memory
+      const fileStream = fs.createReadStream(filePath);
+      const fileSize = fs.statSync(filePath).size;
+      const fileType = mime.lookup(filePath) || "application/octet-stream";
 
       console.log(
         `Uploading ${fileName} to ${uploadUrl} (Attempt ${
           attempts + 1
-        }/${maxAttempts})`
+        }/${maxAttempts}), File size: ${(fileSize / (1024 * 1024)).toFixed(2)} MB`
       );
 
-      const response = await axios.put(uploadUrl, fileData, {
+      // Call the callback with 0% at the start
+      if (typeof progressCallback === "function") {
+        progressCallback(0, 0, fileSize);
+      }
+
+      const response = await axios.put(uploadUrl, fileStream, {
         headers: {
           AccessKey: storageApiKey,
-          "Content-Type": "application/octet-stream",
+          "Content-Type": fileType,
+          "Content-Length": fileSize
         },
-        timeout: 30000,
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+        timeout: 3600000, // 1 hour timeout
+        onUploadProgress: (progressEvent) => {
+          // Calculate percentage and pass to callback if provided
+          if (typeof progressCallback === "function") {
+            const percentage = (progressEvent.loaded / fileSize) * 100;
+            progressCallback(percentage, progressEvent.loaded, fileSize);
+          }
+        }
       });
 
-      console.log("Upload successful:", response);
+      // Important: Explicitly call progress callback with 100% when done
+      if (typeof progressCallback === "function") {
+        progressCallback(100, fileSize, fileSize);
+      }
+
+      console.log("Upload successful:", response.status);
       return { success: true, fileName };
     } catch (error) {
       attempts++;
@@ -168,88 +189,12 @@ async function createVideoToStorageZone(
         );
       }
 
-
       const backoff = Math.pow(2, attempts) * 1000;
       console.log(`Retrying in ${backoff / 1000} seconds...`);
       await new Promise((resolve) => setTimeout(resolve, backoff));
     }
   }
 }
-
-// async function uploadWithRetry(filePath, videoId, maxRetries = 5) {
-//   let attempt = 0;
-//   let lastError = null;
-
-//   while (attempt <= maxRetries) {
-//     try {
-//       attempt++;
-//       console.log(`Upload attempt ${attempt}/${maxRetries + 1}`);
-
-//       // Check network connectivity before attempting
-//       const isConnected = await checkConnectivity();
-//       if (!isConnected) {
-//         console.log(
-//           "Network connectivity issues detected, waiting before retry..."
-//         );
-//         await new Promise((resolve) => setTimeout(resolve, 10000)); // 10 second wait
-//         continue;
-//       }
-
-//       // Try TUS upload first
-//       try {
-//         return await uploadWithTus(filePath, videoId);
-//       } catch (tusError) {
-//         console.warn(
-//           `TUS upload failed, falling back to direct upload: ${tusError.message}`
-//         );
-//         // If TUS fails, try direct upload as fallback
-//         return await uploadDirectly(filePath, videoId);
-//       }
-//     } catch (error) {
-//       lastError = error;
-//       console.error(
-//         `Upload attempt ${attempt} failed: ${error.message || error}`
-//       );
-
-//       // For network related errors, we should always retry
-//       const networkErrors = [
-//         "ECONNRESET",
-//         "ETIMEDOUT",
-//         "ESOCKETTIMEDOUT",
-//         "socket hang up",
-//         "network",
-//         "timeout",
-//         "aborted",
-//       ];
-
-//       const shouldRetry = networkErrors.some(
-//         (errType) =>
-//           (error.message &&
-//             error.message.toLowerCase().includes(errType.toLowerCase())) ||
-//           (error.code && error.code === errType)
-//       );
-
-//       if (!shouldRetry || attempt > maxRetries) {
-//         console.error(`Failed to upload after ${attempt} attempts`);
-//         throw new Error(
-//           `Upload failed after ${attempt} attempts: ${lastError.message}`
-//         );
-//       }
-
-//       // Exponential backoff with jitter
-//       const baseDelay = Math.pow(2, attempt) * 3000; // Base of 3 seconds
-//       const jitter = Math.random() * 1000; // Add up to 1 second of jitter
-//       const delay = baseDelay + jitter;
-
-//       console.log(`Retrying upload in ${(delay / 1000).toFixed(1)} seconds...`);
-//       await new Promise((resolve) => setTimeout(resolve, delay));
-//     }
-//   }
-
-//   throw new Error(
-//     `Upload failed after all ${maxRetries + 1} attempts: ${lastError?.message}`
-//   );
-// }
 
 async function listVideos(storageZoneName, storageApiKey, folder = "") {
   try {
@@ -270,7 +215,7 @@ async function listVideos(storageZoneName, storageApiKey, folder = "") {
 
     // Optional: filter for video file types
     const videoFiles = files.filter((file) =>
-      file.ObjectName.match(/\.(mp4|mov|avi|mkv)$/i)
+      file.ObjectName.match(/\.(mp4|mov|avi|mkv|webm)$/i)
     );
 
     return videoFiles;
@@ -311,7 +256,7 @@ async function uploadWithRetry(
       // Try TUS upload first with progress callback
       console.log("upload with tus")
       try {
-        return await uploadWithTus(filePath, videoId, progressCallback);
+        return await uploadWithTus(filePath,STORAGE_ZONE,STORAGE_API_KEY,"", progressCallback);
       } catch (tusError) {
         console.warn(
           `TUS upload failed, falling back to direct upload: ${tusError.message}`
@@ -367,33 +312,37 @@ async function uploadWithRetry(
   );
 }
 
-// Fix the uploadWithTus function to properly handle progress callbacks
-async function uploadWithTus(filePath, videoId, progressCallback) {
+async function uploadWithTus(filePath, storageZoneName, accessKey, remoteFilePath, progressCallback) {
   return new Promise(async (resolve, reject) => {
     try {
-      console.log(`Starting TUS upload for video ID: ${videoId}`);
+      console.log(`Starting TUS upload to BunnyCDN storage zone: ${storageZoneName}`);
+      
       // Create upload instance
       const fileSize = fs.statSync(filePath).size;
       const fileStream = fs.createReadStream(filePath);
       const fileName = path.basename(filePath);
-
-      // Make sure videoId is properly encoded
-      const encodedVideoId = Buffer.from(videoId).toString("base64");
-
-      console.log(`Using videoId: ${videoId} (encoded: ${encodedVideoId})`);
+      
       console.log(`File size: ${fileSize} bytes`);
-      const uploadUrl = `https://video.bunnycdn.com/tusupload?videoId=${encodedVideoId}`;
-
+      
+      // BunnyCDN Storage TUS endpoint
+      const uploadUrl = `https://storage.bunnycdn.com/${storageZoneName}/tusupload`;
+      
       const fileType = mime.lookup(filePath) || "application/octet-stream";
-
+      
+      // Set up TUS upload with authorization header
       const upload = new tus.Upload(fileStream, {
         endpoint: uploadUrl,
+        headers: {
+          'AccessKey': accessKey
+        },
         metadata: {
           filename: Buffer.from(fileName).toString("base64"),
           filetype: Buffer.from(fileType).toString("base64"),
+          // Include the remote path where the file should be stored
+          path: Buffer.from(remoteFilePath || '').toString("base64")
         },
         uploadSize: fileSize,
-        retryDelays: [0, 1000, 3000],
+        retryDelays: [0, 1000, 3000, 5000],
         onError: function (error) {
           console.error("Upload failed:", error);
           reject(error);
@@ -403,18 +352,20 @@ async function uploadWithTus(filePath, videoId, progressCallback) {
           console.log(
             `Uploaded: ${bytesUploaded} / ${bytesTotal} (${percentage}%)`
           );
-
+          
           // Call the progress callback if provided
           if (typeof progressCallback === "function") {
             progressCallback(parseFloat(percentage), bytesUploaded, bytesTotal);
           }
         },
         onSuccess: function () {
-          console.log("TUS Upload finished:", upload.url);
-          resolve(upload.url);
+          console.log("TUS Upload finished to storage zone");
+          // Return the full path to the uploaded file
+          const fullPath = `https://storage.bunnycdn.com/${storageZoneName}/${remoteFilePath || ''}/${fileName}`;
+          resolve(fullPath);
         },
       });
-
+      
       upload.start();
     } catch (error) {
       console.error(`Error initializing TUS upload: ${error.message}`);
@@ -422,8 +373,7 @@ async function uploadWithTus(filePath, videoId, progressCallback) {
     }
   });
 }
-
-// Fix the Direct upload function to properly handle progress callbacks
+// Improved uploadDirectly function for large files
 async function uploadDirectly(filePath, videoId, progressCallback) {
   try {
     console.log(`Starting direct upload for video ID: ${videoId}`);
@@ -434,7 +384,7 @@ async function uploadDirectly(filePath, videoId, progressCallback) {
     const fileSize = fs.statSync(filePath).size;
 
     console.log(
-      `File: ${fileName}, Size: ${fileSize} bytes, Type: ${fileType}`
+      `File: ${fileName}, Size: ${(fileSize / (1024 * 1024)).toFixed(2)} MB, Type: ${fileType}`
     );
 
     // Create form data for direct upload
@@ -449,7 +399,7 @@ async function uploadDirectly(filePath, videoId, progressCallback) {
         },
         maxContentLength: Infinity,
         maxBodyLength: Infinity,
-        timeout: 3600000, // 1 hour timeout
+        timeout: 7200000, // 2 hours timeout for larger files
         retry: 3,
         retryDelay: 5000,
         onUploadProgress: (progressEvent) => {
@@ -521,21 +471,25 @@ app.get("/check-connectivity", async (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
-
-// Modified endpoint to track upload progress
 app.post("/upload", upload.single("video"), async (req, res) => {
   // Create a unique upload ID for this upload
   const uploadId = Date.now().toString();
 
-  // Store progress information
+  const getISTTime = () => {
+    const date = new Date();
+    const utc = date.getTime() + date.getTimezoneOffset() * 60000;
+    return new Date(utc + 5.5 * 3600000); // IST is UTC + 5:30
+  };
+  
   const progressData = {
     progress: 0,
     bytesUploaded: 0,
     bytesTotal: 0,
     status: "preparing",
     error: null,
+    startTime: getISTTime().toISOString(),
   };
-
+  
   // Store the progress data in a global map
   if (!global.uploadProgress) {
     global.uploadProgress = new Map();
@@ -572,51 +526,82 @@ app.post("/upload", upload.single("video"), async (req, res) => {
       // Update file size
       const fileSize = fs.statSync(filePath).size;
       progressData.bytesTotal = fileSize;
+      
+      // Log file size for debugging
+      console.log(`Processing file: ${path.basename(filePath)}, Size: ${(fileSize / (1024 * 1024)).toFixed(2)} MB`);
 
-      // 1. Create video in Bunny Stream
-      const videoData = await createVideoToStorageZone(
-        filePath,
-        STORAGE_ZONE,
-        STORAGE_API_KEY
-      );
-      console.log("Video created in Bunny.net:", videoData);
-      progressData.status = "uploading";
-      progressData.videoId = videoData.guid;
+      // Update progress tracking before starting upload
+      if (global.uploadProgress && global.uploadProgress.has(uploadId)) {
+        const progressObj = global.uploadProgress.get(uploadId);
+        progressObj.status = "uploading";
+        global.uploadProgress.set(uploadId, progressObj);
+      }
 
-      // 2. Upload the video file with progress tracking
+      // Define progress callback function for real-time tracking
+      // Define progress callback function for real-time tracking
+const progressCallback = (percent, bytesUploaded, bytesTotal) => {
+  if (global.uploadProgress && global.uploadProgress.has(uploadId)) {
+    const progressObj = global.uploadProgress.get(uploadId);
+    // Scale the upload progress to only reach 50% maximum
+    progressObj.progress = (percent / 2);  // This makes 100% upload progress = 50% total progress
+    progressObj.bytesUploaded = bytesUploaded;
+    progressObj.bytesTotal = bytesTotal || progressObj.bytesTotal;
+    
+    // Calculate estimated time remaining if we have enough data
+    if (bytesUploaded > 0) {
+      const startTimeMs = new Date(progressObj.startTime).getTime();
+      const elapsedMs = Date.now() - startTimeMs;
+      const bytesRemaining = bytesTotal - bytesUploaded;
+      const msPerByte = elapsedMs / bytesUploaded;
+      const estimatedRemainingMs = bytesRemaining * msPerByte;
+      
+      // Only add ETA if we have enough data to make a reasonable estimate
+      if (percent > 5) {
+        progressObj.eta = Math.floor(estimatedRemainingMs / 1000); // in seconds
+      }
+    }
+    
+    // Log progress updates for debugging
+    if (percent % 10 === 0 || percent === 100) {
+      console.log(`Upload progress: ${percent.toFixed(2)}% (${bytesUploaded}/${bytesTotal} bytes)`);
+      console.log(`Total job progress: ${progressObj.progress.toFixed(2)}%`);
+    }
+    
+    global.uploadProgress.set(uploadId, progressObj);
+  }
+};
+
       try {
-        // Define progress callback and ensure it updates the global progress object
-        const progressCallback = (percent, bytesUploaded, bytesTotal) => {
-          // Update progress data object in the global map
-          if (global.uploadProgress && global.uploadProgress.has(uploadId)) {
-            const progressObj = global.uploadProgress.get(uploadId);
-            progressObj.progress = percent;
-            progressObj.bytesUploaded = bytesUploaded;
-            progressObj.bytesTotal = bytesTotal || progressObj.bytesTotal;
-            // Update the map
-            global.uploadProgress.set(uploadId, progressObj);
-          }
-        };
-
-        // Pass the progress callback to uploadWithRetry
-        await uploadWithRetry(filePath, videoData.guid, 5, progressCallback);
-
-        // Update progress status after successful upload
+        // Create video in Bunny Storage Zone with real-time progress tracking
+        const videoData = await createVideoToStorageZone(
+          filePath,
+          STORAGE_ZONE,
+          STORAGE_API_KEY,
+          progressCallback  // Pass the progress callback
+        );
+        
+        console.log("Video created in Bunny.net:", videoData);
+        
+        // Ensure progress is at 100% after successful upload
         if (global.uploadProgress && global.uploadProgress.has(uploadId)) {
           const progressObj = global.uploadProgress.get(uploadId);
-          progressObj.status = "processing";
-          progressObj.progress = 100;
+          progressObj.status = "encoding";
+          progressObj.progress = 100;  // Upload is complete, now at 50%
+          progressObj.bytesUploaded = progressObj.bytesTotal; 
+          progressObj.videoId = videoData.guid || videoData.fileName;
           global.uploadProgress.set(uploadId, progressObj);
         }
 
-        // 3. Get updated video details
-        const videoDetails = await getVideoDetails(STORAGE_ZONE,videoData.fileName,STORAGE_API_KEY);
+        // Get updated video details
+        const videoDetails = await getVideoDetails(STORAGE_ZONE, videoData.fileName, STORAGE_API_KEY);
 
         // Final progress update
         if (global.uploadProgress && global.uploadProgress.has(uploadId)) {
           const progressObj = global.uploadProgress.get(uploadId);
           progressObj.status = "completed";
           progressObj.videoDetails = videoDetails;
+          progressObj.completedAt = Date.now();
+          progressObj.totalDuration = (progressObj.completedAt - new Date(progressObj.startTime).getTime()) / 1000;
           global.uploadProgress.set(uploadId, progressObj);
         }
       } catch (uploadError) {
@@ -626,12 +611,13 @@ app.post("/upload", upload.single("video"), async (req, res) => {
           progressObj.error = `Upload failed: ${uploadError.message}`;
           global.uploadProgress.set(uploadId, progressObj);
         }
-        console.error("Upload failed after all retries:", uploadError.message);
+        console.error("Upload failed:", uploadError.message);
       }
 
-      // 4. Delete temporary file
+      // Delete temporary file
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
+        console.log(`Temporary file deleted: ${filePath}`);
       }
     } catch (error) {
       console.error("Upload process failed:", error);
@@ -645,10 +631,12 @@ app.post("/upload", upload.single("video"), async (req, res) => {
       // Clean up temp file if it exists
       if (req.file && fs.existsSync(req.file.path)) {
         fs.unlinkSync(req.file.path);
+        console.log(`Temporary file deleted: ${req.file.path}`);
       }
     }
   })();
 });
+
 
 // Add endpoint to check upload status that returns fresh data
 app.get("/upload-status/:uploadId", (req, res) => {
