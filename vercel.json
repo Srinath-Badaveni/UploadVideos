@@ -2,14 +2,14 @@
     "version": 2,
     "builds": [
       {
-        "src": "serveri.js",
+        "src": "api/serveri.js",
         "use": "@vercel/node"
       }
     ],
     "routes": [
       {
         "src": "/(.*)",
-        "dest": "/serveri.js"
+        "dest": "/api/serveri.js"
       }
     ]
   }
