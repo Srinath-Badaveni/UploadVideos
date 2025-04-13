@@ -1,322 +1,362 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Video Upload</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        .container {
-            border: 1px solid #ddd;
-            padding: 20px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-        input, button {
-            padding: 8px;
-            width: 100%;
-        }
-        button {
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            cursor: pointer;
-            margin-top: 10px;
-        }
-        button:hover {
-            background-color: #45a049;
-        }
-        button:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-        }
-        .progress-container {
-            margin-top: 20px;
-            display: none;
-        }
-        .progress {
-            height: 20px;
-            background-color: #f0f0f0;
-            border-radius: 5px;
-            overflow: hidden;
-            margin-bottom: 5px;
-        }
-        .progress-bar {
-            height: 100%;
-            background-color: #4CAF50;
-            width: 0%;
-            transition: width 0.3s ease;
-        }
-        .progress-info {
-            display: flex;
-            justify-content: space-between;
-            font-size: 14px;
-        }
-        .status-badge {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: bold;
-            color: white;
-            margin-bottom: 10px;
-        }
-        .status-preparing { background-color: #FFA500; }
-        .status-creating { background-color: #2196F3; }
-        .status-uploading { background-color: #9C27B0; }
-        .status-processing { background-color: #FF9800; }
-        .status-completed { background-color: #4CAF50; }
-        .status-failed { background-color: #F44336; }
-        
-        #videoList {
-            margin-top: 30px;
-        }
-        .video-item {
-            border: 1px solid #ddd;
-            padding: 15px;
-            margin-bottom: 15px;
-            border-radius: 5px;
-        }
-        .player {
-            width: 100%;
-            max-width: 640px;
-            margin-top: 10px;
-        }
-        .refresh-btn {
-            background-color: #2196F3;
-            padding: 5px 10px;
-            width: auto;
-            float: right;
-        }
-        .error-message {
-            color: #F44336;
-            margin-top: 10px;
-            font-weight: bold;
-        }
-        .bytes-info {
-            font-size: 12px;
-            color: #666;
-        }
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .container {
+        border: 1px solid #ddd;
+        padding: 20px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+      }
+      .form-group {
+        margin-bottom: 15px;
+      }
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+      input,
+      button {
+        padding: 8px;
+        width: 100%;
+      }
+      button {
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        cursor: pointer;
+        margin-top: 10px;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+      button:disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+      }
+      .progress-container {
+        margin-top: 20px;
+        display: none;
+      }
+      .progress {
+        height: 20px;
+        background-color: #f0f0f0;
+        border-radius: 5px;
+        overflow: hidden;
+        margin-bottom: 5px;
+      }
+      .progress-bar {
+        height: 100%;
+        background-color: #4caf50;
+        width: 0%;
+        transition: width 0.3s ease;
+      }
+      .progress-info {
+        display: flex;
+        justify-content: space-between;
+        font-size: 14px;
+      }
+      .status-badge {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: bold;
+        color: white;
+        margin-bottom: 10px;
+      }
+      .status-preparing {
+        background-color: #ffa500;
+      }
+      .status-creating {
+        background-color: #2196f3;
+      }
+      .status-uploading {
+        background-color: #9c27b0;
+      }
+      .status-processing {
+        background-color: #ff9800;
+      }
+      .status-completed {
+        background-color: #4caf50;
+      }
+      .status-failed {
+        background-color: #f44336;
+      }
+
+      #videoList {
+        margin-top: 30px;
+      }
+      .video-item {
+        border: 1px solid #ddd;
+        padding: 15px;
+        margin-bottom: 15px;
+        border-radius: 5px;
+      }
+      .player {
+        width: 100%;
+        max-width: 640px;
+        margin-top: 10px;
+      }
+      .refresh-btn {
+        background-color: #2196f3;
+        padding: 5px 10px;
+        width: auto;
+        float: right;
+      }
+      .error-message {
+        color: #f44336;
+        margin-top: 10px;
+        font-weight: bold;
+      }
+      .bytes-info {
+        font-size: 12px;
+        color: #666;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="container">
-        <h1>Upload Video</h1>
-        <form id="uploadForm">
-            <div class="form-group">
-                <label for="title">Video Title</label>
-                <input type="text" id="title" name="title" required>
-            </div>
-            <div class="form-group">
-                <label for="video">Select Video</label>
-                <input type="file" id="video" name="video" accept="video/*,.mkv" required>
-            </div>
-            <div class="form-group">
-                <label for="collectionId">Collection ID (Optional)</label>
-                <input type="text" id="collectionId" name="collectionId">
-            </div>
-            <button type="submit" id="uploadBtn">Upload Video</button>
-        </form>
-        
-        <div class="progress-container" id="progressContainer">
-            <div class="status-badge" id="statusBadge">Preparing</div>
-            <div class="progress">
-                <div class="progress-bar" id="progressBar"></div>
-            </div>
-            <div class="progress-info">
-                <span id="percentText">0%</span>
-                <span class="bytes-info" id="bytesInfo">0 MB / 0 MB</span>
-            </div>
-            <div class="error-message" id="errorMessage"></div>
+      <h1>Upload Video</h1>
+      <form id="uploadForm">
+        <div class="form-group">
+          <label for="title">Video Title</label>
+          <input type="text" id="title" name="title" required />
         </div>
+        <div class="form-group">
+          <label for="video">Select Video</label>
+          <input
+            type="file"
+            id="video"
+            name="video"
+            accept="video/*,.mkv"
+            required
+          />
+        </div>
+        <div class="form-group">
+          <label for="collectionId">Collection ID (Optional)</label>
+          <input type="text" id="collectionId" name="collectionId" />
+        </div>
+        <button type="submit" id="uploadBtn">Upload Video</button>
+      </form>
+
+      <div class="progress-container" id="progressContainer">
+        <div class="status-badge" id="statusBadge">Preparing</div>
+        <div class="progress">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <div class="progress-info">
+          <span id="percentText">0%</span>
+          <span class="bytes-info" id="bytesInfo">0 MB / 0 MB</span>
+        </div>
+        <div class="error-message" id="errorMessage"></div>
+      </div>
     </div>
 
     <div id="videoList" class="container">
-        <h2>Your Videos <button class="refresh-btn" id="refreshBtn">Refresh</button></h2>
-        <div id="videos-container"></div>
+      <h2>
+        Your Videos <button class="refresh-btn" id="refreshBtn">Refresh</button>
+      </h2>
+      <div id="videos-container"></div>
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Elements
-            const uploadForm = document.getElementById('uploadForm');
-            const uploadBtn = document.getElementById('uploadBtn');
-            const progressContainer = document.getElementById('progressContainer');
-            const progressBar = document.getElementById('progressBar');
-            const percentText = document.getElementById('percentText');
-            const bytesInfo = document.getElementById('bytesInfo');
-            const statusBadge = document.getElementById('statusBadge');
-            const errorMessage = document.getElementById('errorMessage');
-            const refreshBtn = document.getElementById('refreshBtn');
-            
-            // Current upload ID and polling interval
-            let currentUploadId = null;
-            let statusCheckInterval = null;
-            
-            // Format bytes to human-readable format
-            function formatBytes(bytes, decimals = 2) {
-                if (bytes === 0) return '0 Bytes';
-                
-                const k = 1024;
-                const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-                const i = Math.floor(Math.log(bytes) / Math.log(k));
-                
-                return parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + ' ' + sizes[i];
-            }
-            
-            // Update status display
-            function updateStatusDisplay(status) {
-                // Remove all status classes
-                statusBadge.className = 'status-badge';
-                
-                // Set text and add appropriate class
-                statusBadge.textContent = status.charAt(0).toUpperCase() + status.slice(1);
-                statusBadge.classList.add('status-' + status);
-            }
-            
-            // Check upload status
-            async function checkUploadStatus(uploadId) {
-                try {
-                    const response = await fetch(`/upload-status/${uploadId}`);
-                    
-                    if (!response.ok) {
-                        throw new Error('Failed to fetch upload status');
-                    }
-                    
-                    const data = await response.json();
-                    
-                    // Update progress bar
-                    progressBar.style.width = `${data.progress}%`;
-                    percentText.textContent = `${Math.round(data.progress)}%`;
-                    
-                    // Update bytes info if available
-                    if (data.bytesTotal > 0) {
-                        bytesInfo.textContent = `${formatBytes(data.bytesUploaded)} / ${formatBytes(data.bytesTotal)}`;
-                    }
-                    
-                    // Update status
-                    updateStatusDisplay(data.status);
-                    
-                    // Handle error
-                    if (data.error) {
-                        errorMessage.textContent = data.error;
-                        errorMessage.style.display = 'block';
-                    } else {
-                        errorMessage.style.display = 'none';
-                    }
-                    
-                    // Handle completion
-                    if (data.status === 'completed') {
-                        clearInterval(statusCheckInterval);
-                        uploadBtn.disabled = false;
-                        uploadForm.reset();
-                        setTimeout(() => {
-                            loadVideos();
-                            // Hide progress after 5 seconds
-                            setTimeout(() => {
-                                progressContainer.style.display = 'none';
-                            }, 5000);
-                        }, 1000);
-                    }
-                    
-                    // Handle failure
-                    if (data.status === 'failed') {
-                        clearInterval(statusCheckInterval);
-                        uploadBtn.disabled = false;
-                    }
-                    
-                } catch (error) {
-                    console.error('Error checking upload status:', error);
-                }
-            }
-            
-            // Handle form submission
-            uploadForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                
-                // Clear any existing intervals
-                if (statusCheckInterval) {
-                    clearInterval(statusCheckInterval);
-                }
-                
-                // Reset progress display
-                progressBar.style.width = '0%';
-                percentText.textContent = '0%';
-                bytesInfo.textContent = '0 MB / 0 MB';
-                errorMessage.style.display = 'none';
-                
-                // Show progress container and disable submit button
-                progressContainer.style.display = 'block';
-                uploadBtn.disabled = true;
-                updateStatusDisplay('preparing');
-                
-                try {
-                    const formData = new FormData(uploadForm);
-                    
-                    const response = await fetch('/upload', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    
-                    if (!response.ok) {
-                        throw new Error('Upload request failed');
-                    }
-                    
-                    const result = await response.json();
-                    console.log("frontEnd",result)
-                    
-                    if (result.uploadId) {
-                        currentUploadId = result.uploadId;
-                        
-                        // Start polling for status
-                        statusCheckInterval = setInterval(() => {
-                            checkUploadStatus(currentUploadId);
-                        }, 1000); // Check every second
-                        
-                    } else {
-                        throw new Error('No upload ID received');
-                    }
-                    
-                } catch (error) {
-                    console.error('Upload initialization failed:', error);
-                    errorMessage.textContent = 'Upload failed: ' + error.message;
-                    errorMessage.style.display = 'block';
-                    updateStatusDisplay('failed');
-                    uploadBtn.disabled = false;
-                }
-            });
-            
-            // Load videos
-            async function loadVideos() {
-    try {
-        const response = await fetch('/videos');
+      document.addEventListener("DOMContentLoaded", function () {
+        // Elements
+        const uploadForm = document.getElementById("uploadForm");
+        const uploadBtn = document.getElementById("uploadBtn");
+        const progressContainer = document.getElementById("progressContainer");
+        const progressBar = document.getElementById("progressBar");
+        const percentText = document.getElementById("percentText");
+        const bytesInfo = document.getElementById("bytesInfo");
+        const statusBadge = document.getElementById("statusBadge");
+        const errorMessage = document.getElementById("errorMessage");
+        const refreshBtn = document.getElementById("refreshBtn");
 
-        if (!response.ok) {
-            throw new Error('Failed to fetch videos');
+        // Current upload ID and polling interval
+        let currentUploadId = null;
+        let statusCheckInterval = null;
+
+        // Format bytes to human-readable format
+        function formatBytes(bytes, decimals = 2) {
+          if (bytes === 0) return "0 Bytes";
+
+          const k = 1024;
+          const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+          const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+          return (
+            parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) +
+            " " +
+            sizes[i]
+          );
         }
 
-        const data = await response.json();
-        const videosContainer = document.getElementById('videos-container');
-        videosContainer.innerHTML = '';
-        console.log(data.length)
+        // Update status display
+        function updateStatusDisplay(status) {
+          // Remove all status classes
+          statusBadge.className = "status-badge";
 
-        if (data && data.length > 0) {
-            data.forEach(video => {
-                const videoElement = document.createElement('div');
-                videoElement.className = 'video-item';
+          // Set text and add appropriate class
+          statusBadge.textContent =
+            status.charAt(0).toUpperCase() + status.slice(1);
+          statusBadge.classList.add("status-" + status);
+        }
+
+        // Check upload status
+        async function checkUploadStatus(uploadId) {
+          try {
+            const response = await fetch(`/upload-status/${uploadId}`);
+
+            if (!response.ok) {
+              throw new Error("Failed to fetch upload status");
+            }
+
+            const data = await response.json();
+
+            // Update progress bar
+            progressBar.style.width = `${data.progress}%`;
+            percentText.textContent = `${Math.round(data.progress)}%`;
+
+            // Update bytes info if available
+            if (data.bytesTotal > 0) {
+              bytesInfo.textContent = `${formatBytes(
+                data.bytesUploaded
+              )} / ${formatBytes(data.bytesTotal)}`;
+            }
+
+            // Update status
+            updateStatusDisplay(data.status);
+
+            // Handle error
+            if (data.error) {
+              errorMessage.textContent = data.error;
+              errorMessage.style.display = "block";
+            } else {
+              errorMessage.style.display = "none";
+            }
+
+            // Handle completion
+            if (data.status === "completed") {
+              clearInterval(statusCheckInterval);
+              uploadBtn.disabled = false;
+              uploadForm.reset();
+              setTimeout(() => {
+                loadVideos();
+                // Hide progress after 5 seconds
+                setTimeout(() => {
+                  progressContainer.style.display = "none";
+                }, 5000);
+              }, 1000);
+            }
+
+            // Handle failure
+            if (data.status === "failed") {
+              clearInterval(statusCheckInterval);
+              uploadBtn.disabled = false;
+            }
+          } catch (error) {
+            console.error("Error checking upload status:", error);
+          }
+        }
+
+        // Handle form submission
+        uploadForm.addEventListener("submit", async (e) => {
+          e.preventDefault();
+
+          const title = document.getElementById("title").value.trim();
+          const fileInput = document.getElementById("video");
+          const videoFile = fileInput.files[0];
+
+          if (!videoFile) {
+            alert("Please select a video file.");
+            return;
+          }
+
+          // UI Reset
+          progressBar.style.width = "0%";
+          percentText.textContent = "0%";
+          bytesInfo.textContent = `0 MB / ${formatBytes(videoFile.size)}`;
+          errorMessage.style.display = "none";
+          updateStatusDisplay("uploading");
+          progressContainer.style.display = "block";
+          uploadBtn.disabled = true;
+
+          const upload = new tus.Upload(videoFile, {
+            endpoint:
+              "https://storage.bunnycdn.com/learningstream/tusupload", // Replace with your Bunny zone
+            headers: {
+              AccessKey: "YOUR_STORAGE_API_KEY", // Replace with your API key
+            },
+            metadata: {
+              filename: btoa(videoFile.name),
+              filetype: btoa(videoFile.type),
+              path: btoa(""), // optional subfolder
+            },
+            uploadSize: videoFile.size,
+            retryDelays: [0, 1000, 3000, 5000],
+            onProgress: function (bytesUploaded, bytesTotal) {
+              const percent = ((bytesUploaded / bytesTotal) * 100).toFixed(2);
+              progressBar.style.width = percent + "%";
+              percentText.textContent = percent + "%";
+              bytesInfo.textContent = `${formatBytes(
+                bytesUploaded
+              )} / ${formatBytes(bytesTotal)}`;
+            },
+            onError: function (error) {
+              updateStatusDisplay("failed");
+              errorMessage.style.display = "block";
+              errorMessage.textContent = "Upload failed: " + error.message;
+              uploadBtn.disabled = false;
+            },
+            onSuccess: function () {
+              updateStatusDisplay("completed");
+              progressBar.style.width = "100%";
+              percentText.textContent = "100%";
+              bytesInfo.textContent = `${formatBytes(
+                videoFile.size
+              )} / ${formatBytes(videoFile.size)}`;
+              uploadBtn.disabled = false;
+              uploadForm.reset();
+
+              setTimeout(() => {
+                progressContainer.style.display = "none";
+                loadVideos(); // Refresh list after success
+              }, 3000);
+            },
+          });
+
+          upload.start();
+        });
+
+        // Load videos
+        async function loadVideos() {
+          try {
+            const response = await fetch("/videos");
+
+            if (!response.ok) {
+              throw new Error("Failed to fetch videos");
+            }
+
+            const data = await response.json();
+            const videosContainer = document.getElementById("videos-container");
+            videosContainer.innerHTML = "";
+            console.log(data.length);
+
+            if (data && data.length > 0) {
+              data.forEach((video) => {
+                const videoElement = document.createElement("div");
+                videoElement.className = "video-item";
 
                 // Direct Storage Zone MP4 URL (e.g., BunnyCDN public URL)
                 const videoUrl = `https://learningplatform.b-cdn.net/${video.ObjectName}`; // assuming `fileName` contains '1744474755334.mp4'
@@ -329,45 +369,575 @@
                 `;
 
                 videoElement.innerHTML = `
-                    <h3>${video.ObjectName || 'Untitled Video'}</h3>
+                    <h3>${video.ObjectName || "Untitled Video"}</h3>
                     ${playerHtml}
-                    <p><strong>Size:</strong> ${(video.Length / (1024 * 1024)).toFixed(2)} MB</p>
-                    <p><strong>Last Modified:</strong> ${new Date(video.LastChanged).toLocaleString()}</p>
+                    <p><strong>Size:</strong> ${(
+                      video.Length /
+                      (1024 * 1024)
+                    ).toFixed(2)} MB</p>
+                    <p><strong>Last Modified:</strong> ${new Date(
+                      video.LastChanged
+                    ).toLocaleString()}</p>
                 `;
 
                 videosContainer.appendChild(videoElement);
-            });
-        } else {
-            videosContainer.innerHTML = '<p>No videos found</p>';
-        }
-    } catch (error) {
-        console.error('Error loading videos:', error);
-        document.getElementById('videos-container').innerHTML =
-            `<p>Error loading videos: ${error.message}</p>`;
-    }
-}
-
-            
-            // Refresh videos button
-            refreshBtn.addEventListener('click', loadVideos);
-            
-            // Helper function to convert status code to text
-            function getStatusText(status) {
-                const statuses = {
-                    0: 'Created',
-                    1: 'Uploaded',
-                    2: 'Processing',
-                    3: 'Encoding',
-                    4: 'Ready',
-                    5: 'Failed'
-                };
-                return statuses[status] || 'Unknown';
-          
+              });
+            } else {
+              videosContainer.innerHTML = "<p>No videos found</p>";
             }
-            
-            // Load videos on page load
-            loadVideos();
-        });
+          } catch (error) {
+            console.error("Error loading videos:", error);
+            document.getElementById(
+              "videos-container"
+            ).innerHTML = `<p>Error loading videos: ${error.message}</p>`;
+          }
+        }
+
+        // Refresh videos button
+        refreshBtn.addEventListener("click", loadVideos);
+
+        // Helper function to convert status code to text
+        function getStatusText(status) {
+          const statuses = {
+            0: "Created",
+            1: "Uploaded",
+            2: "Processing",
+            3: "Encoding",
+            4: "Ready",
+            5: "Failed",
+          };
+          return statuses[status] || "Unknown";
+        }
+
+        // Load videos on page load
+        loadVideos();
+      });
     </script>
-</body>
+  </body>
+</html> -->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Video Upload</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .container {
+        border: 1px solid #ddd;
+        padding: 20px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+      }
+      .form-group {
+        margin-bottom: 15px;
+      }
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+      input,
+      button {
+        padding: 8px;
+        width: 100%;
+      }
+      button {
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        cursor: pointer;
+        margin-top: 10px;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+      button:disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+      }
+      .progress-container {
+        margin-top: 20px;
+        display: none;
+      }
+      .progress {
+        height: 20px;
+        background-color: #f0f0f0;
+        border-radius: 5px;
+        overflow: hidden;
+        margin-bottom: 5px;
+      }
+      .progress-bar {
+        height: 100%;
+        background-color: #4caf50;
+        width: 0%;
+        transition: width 0.3s ease;
+      }
+      .progress-info {
+        display: flex;
+        justify-content: space-between;
+        font-size: 14px;
+      }
+      .status-badge {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: bold;
+        color: white;
+        margin-bottom: 10px;
+      }
+      .status-preparing {
+        background-color: #ffa500;
+      }
+      .status-creating {
+        background-color: #2196f3;
+      }
+      .status-uploading {
+        background-color: #9c27b0;
+      }
+      .status-processing {
+        background-color: #ff9800;
+      }
+      .status-completed {
+        background-color: #4caf50;
+      }
+      .status-failed {
+        background-color: #f44336;
+      }
+
+      #videoList {
+        margin-top: 30px;
+      }
+      .video-item {
+        border: 1px solid #ddd;
+        padding: 15px;
+        margin-bottom: 15px;
+        border-radius: 5px;
+      }
+      .player {
+        width: 100%;
+        max-width: 640px;
+        margin-top: 10px;
+      }
+      .refresh-btn {
+        background-color: #2196f3;
+        padding: 5px 10px;
+        width: auto;
+        float: right;
+      }
+      .error-message {
+        color: #f44336;
+        margin-top: 10px;
+        font-weight: bold;
+      }
+      .bytes-info {
+        font-size: 12px;
+        color: #666;
+      }
+      .warning-banner {
+        background-color: #fff3cd;
+        color: #856404;
+        padding: 10px;
+        border-radius: 5px;
+        margin-bottom: 15px;
+        border: 1px solid #ffeeba;
+      }
+      .connection-status {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        padding: 5px 10px;
+        border-radius: 5px;
+        font-size: 12px;
+        font-weight: bold;
+      }
+      .connection-online {
+        background-color: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+      .connection-offline {
+        background-color: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="connectionStatus" class="connection-status connection-online">
+      Connected
+    </div>
+
+    <div class="container">
+      <h1>Upload Video</h1>
+
+      <div id="warningBanner" class="warning-banner" style="display: none">
+        <strong>Warning:</strong> Large file uploads (>100MB) may take longer
+        and require a stable connection.
+      </div>
+
+      <form id="uploadForm">
+        <div class="form-group">
+          <label for="title">Video Title</label>
+          <input type="text" id="title" name="title" required />
+        </div>
+        <div class="form-group">
+          <label for="video">Select Video</label>
+          <input
+            type="file"
+            id="video"
+            name="video"
+            accept="video/*,.mkv"
+            required
+          />
+        </div>
+        <div class="form-group">
+          <label for="collectionId">Collection ID (Optional)</label>
+          <input type="text" id="collectionId" name="collectionId" />
+        </div>
+        <button type="submit" id="uploadBtn">Upload Video</button>
+      </form>
+
+      <div class="progress-container" id="progressContainer">
+        <div class="status-badge" id="statusBadge">Preparing</div>
+        <div class="progress">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <div class="progress-info">
+          <span id="percentText">0%</span>
+          <span class="bytes-info" id="bytesInfo">0 MB / 0 MB</span>
+        </div>
+        <div class="error-message" id="errorMessage"></div>
+      </div>
+    </div>
+
+    <div id="videoList" class="container">
+      <h2>
+        Your Videos <button class="refresh-btn" id="refreshBtn">Refresh</button>
+      </h2>
+      <div id="videos-container"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/tus-js-client@3.1.0/dist/tus.min.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        // Elements
+        const uploadForm = document.getElementById("uploadForm");
+        const uploadBtn = document.getElementById("uploadBtn");
+        const progressContainer = document.getElementById("progressContainer");
+        const progressBar = document.getElementById("progressBar");
+        const percentText = document.getElementById("percentText");
+        const bytesInfo = document.getElementById("bytesInfo");
+        const statusBadge = document.getElementById("statusBadge");
+        const errorMessage = document.getElementById("errorMessage");
+        const refreshBtn = document.getElementById("refreshBtn");
+        const warningBanner = document.getElementById("warningBanner");
+        const connectionStatus = document.getElementById("connectionStatus");
+        const fileInput = document.getElementById("video");
+
+        // Connectivity check
+        async function checkConnectivity() {
+          try {
+            const response = await fetch("/check-connectivity");
+            if (response.ok) {
+              const data = await response.json();
+              if (data.connected) {
+                connectionStatus.className =
+                  "connection-status connection-online";
+                connectionStatus.textContent = "Connected";
+              } else {
+                connectionStatus.className =
+                  "connection-status connection-offline";
+                connectionStatus.textContent = "Offline";
+              }
+            } else {
+              connectionStatus.className =
+                "connection-status connection-offline";
+              connectionStatus.textContent = "API Error";
+            }
+          } catch (error) {
+            connectionStatus.className = "connection-status connection-offline";
+            connectionStatus.textContent = "Offline";
+          }
+        }
+
+        // Check connectivity periodically
+        checkConnectivity();
+        setInterval(checkConnectivity, 30000); // Every 30 seconds
+
+        // Check file size when selected
+        fileInput.addEventListener("change", function () {
+          if (this.files && this.files[0]) {
+            const fileSize = this.files[0].size / (1024 * 1024); // MB
+
+            if (fileSize > 100) {
+              warningBanner.style.display = "block";
+              warningBanner.innerHTML = `<strong>Warning:</strong> The selected file is ${fileSize.toFixed(
+                2
+              )}MB. Large uploads may take longer and require a stable connection. Do not refresh or close this page during upload.`;
+            } else {
+              warningBanner.style.display = "none";
+            }
+          }
+        });
+
+        // Format bytes to human-readable format
+        function formatBytes(bytes, decimals = 2) {
+          if (bytes === 0) return "0 Bytes";
+
+          const k = 1024;
+          const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+          const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+          return (
+            parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) +
+            " " +
+            sizes[i]
+          );
+        }
+
+        // Update status display
+        function updateStatusDisplay(status) {
+          // Remove all status classes
+          statusBadge.className = "status-badge";
+
+          // Set text and add appropriate class
+          statusBadge.textContent =
+            status.charAt(0).toUpperCase() + status.slice(1);
+          statusBadge.classList.add("status-" + status);
+        }
+
+        // Check upload status with exponential backoff
+        let statusCheckCount = 0;
+        let statusCheckDelay = 1000; // Start with 1s delay
+
+        async function checkUploadStatus(uploadId) {
+          try {
+            const response = await fetch(`/upload-status/${uploadId}`);
+
+            if (!response.ok) {
+              throw new Error("Failed to fetch upload status");
+            }
+
+            const data = await response.json();
+
+            // Update progress bar
+            progressBar.style.width = `${data.progress}%`;
+            percentText.textContent = `${Math.round(data.progress)}%`;
+
+            // Update bytes info if available
+            if (data.bytesTotal > 0) {
+              bytesInfo.textContent = `${formatBytes(
+                data.bytesUploaded
+              )} / ${formatBytes(data.bytesTotal)}`;
+            }
+
+            // Update status
+            updateStatusDisplay(data.status);
+
+            // Handle error
+            if (data.error) {
+              errorMessage.textContent = data.error;
+              errorMessage.style.display = "block";
+            } else {
+              errorMessage.style.display = "none";
+            }
+
+            // Reduce polling frequency as the upload progresses
+            statusCheckCount++;
+            if (statusCheckCount > 10) {
+              statusCheckDelay = Math.min(statusCheckDelay * 1.5, 10000); // Max 10s
+            }
+
+            // Handle completion
+            if (data.status === "completed") {
+              uploadBtn.disabled = false;
+              uploadForm.reset();
+              warningBanner.style.display = "none";
+
+              setTimeout(() => {
+                loadVideos();
+                // Hide progress after success
+                setTimeout(() => {
+                  progressContainer.style.display = "none";
+                }, 5000);
+              }, 1000);
+
+              return true; // Stop polling
+            }
+
+            // Handle failure
+            if (data.status === "failed") {
+              uploadBtn.disabled = false;
+              return true; // Stop polling
+            }
+
+            return false; // Continue polling
+          } catch (error) {
+            console.error("Error checking upload status:", error);
+            // If we get errors, slow down polling
+            statusCheckDelay = Math.min(statusCheckDelay * 2, 15000); // Max 15s
+            return false;
+          }
+        }
+
+        // Poll status with exponential backoff
+        function pollUploadStatus(uploadId) {
+          checkUploadStatus(uploadId).then((shouldStop) => {
+            if (!shouldStop) {
+              setTimeout(() => pollUploadStatus(uploadId), statusCheckDelay);
+            }
+          });
+        }
+
+        // Handle form submission
+        uploadForm.addEventListener("submit", async (e) => {
+          e.preventDefault();
+
+          const title = document.getElementById("title").value.trim();
+          const videoFile = fileInput.files[0];
+          const collectionId = document
+            .getElementById("collectionId")
+            .value.trim();
+
+          if (!videoFile) {
+            alert("Please select a video file.");
+            return;
+          }
+
+          // Reset status check parameters
+          statusCheckCount = 0;
+          statusCheckDelay = 1000;
+
+          // UI Reset
+          progressBar.style.width = "0%";
+          percentText.textContent = "0%";
+          bytesInfo.textContent = `0 MB / ${formatBytes(videoFile.size)}`;
+          errorMessage.style.display = "none";
+          updateStatusDisplay("preparing");
+          progressContainer.style.display = "block";
+          uploadBtn.disabled = true;
+
+          try {
+            // Create FormData
+            const formData = new FormData();
+            formData.append("title", title);
+            formData.append("video", videoFile);
+
+            if (collectionId) {
+              formData.append("collectionId", collectionId);
+            }
+
+            // Send the upload request
+            const response = await fetch("/upload", {
+              method: "POST",
+              body: formData,
+            });
+
+            if (!response.ok) {
+              throw new Error(
+                `Server returned ${response.status}: ${response.statusText}`
+              );
+            }
+
+            const data = await response.json();
+
+            if (data.uploadId) {
+              updateStatusDisplay("uploading");
+              // Start polling for status with exponential backoff
+              pollUploadStatus(data.uploadId);
+            } else {
+              throw new Error("No upload ID returned from server");
+            }
+          } catch (error) {
+            updateStatusDisplay("failed");
+            errorMessage.style.display = "block";
+            errorMessage.textContent = error.message || "Upload failed";
+            uploadBtn.disabled = false;
+            console.error("Upload error:", error);
+          }
+        });
+
+        // Load videos
+        // Load videos
+        async function loadVideos() {
+          try {
+            const response = await fetch("/videos");
+
+            if (!response.ok) {
+              throw new Error("Failed to fetch videos");
+            }
+
+            const data = await response.json();
+            const videosContainer = document.getElementById("videos-container");
+            videosContainer.innerHTML = "";
+            console.log(data.length);
+
+            if (data && data.length > 0) {
+              data.forEach((video) => {
+                const videoElement = document.createElement("div");
+                videoElement.className = "video-item";
+
+                // Direct Storage Zone MP4 URL (e.g., BunnyCDN public URL)
+                const videoUrl = `https://learningplatform.b-cdn.net/${video.ObjectName}`; // assuming `fileName` contains '1744474755334.mp4'
+
+                const playerHtml = `
+                    <video class="player" controls width="100%" preload="metadata">
+                        <source src="${videoUrl}" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                `;
+
+                videoElement.innerHTML = `
+                    <h3>${video.ObjectName || "Untitled Video"}</h3>
+                    ${playerHtml}
+                    <p><strong>Size:</strong> ${(
+                      video.Length /
+                      (1024 * 1024)
+                    ).toFixed(2)} MB</p>
+                    <p><strong>Last Modified:</strong> ${new Date(
+                      video.LastChanged
+                    ).toLocaleString()}</p>
+                `;
+
+                videosContainer.appendChild(videoElement);
+              });
+            } else {
+              videosContainer.innerHTML = "<p>No videos found</p>";
+            }
+          } catch (error) {
+            console.error("Error loading videos:", error);
+            document.getElementById(
+              "videos-container"
+            ).innerHTML = `<p>Error loading videos: ${error.message}</p>`;
+          }
+        }
+
+        // Refresh videos button
+        refreshBtn.addEventListener("click", loadVideos);
+
+        // Helper function to convert status code to text
+        function getStatusText(status) {
+          const statuses = {
+            0: "Created",
+            1: "Uploaded",
+            2: "Processing",
+            3: "Encoding",
+            4: "Ready",
+            5: "Failed",
+          };
+          return statuses[status] || "Unknown";
+        }
+
+        // Load videos on page load
+        loadVideos();
+      });
+    </script>
+  </body>
 </html>
