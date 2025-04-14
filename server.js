@@ -3,6 +3,7 @@ const express = require("express");
 const multer = require("multer");
 const axios = require("axios");
 const fs = require("fs");
+const cors = require('cors');
 const path = require("path");
 const { promisify } = require("util");
 const dns = require("dns");
@@ -10,441 +11,263 @@ const mime = require("mime-types");
 const crypto = require("crypto");
 require("dotenv").config();
 
-// Initialize Express app
+
 const app = express();
-app.use(express.json({ limit: "50mb" })); // Reduced limit for JSON
-app.use(express.urlencoded({ extended: true, limit: "50mb" })); // Reduced limit for URL-encoded
+const PORT = process.env.PORT || 3001;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
 app.use(express.static("public"));
 
-// Configure multer for disk storage with memory-efficient streaming
+
+// Configure multer for file uploads
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    // Ensure uploads directory exists
-    if (!fs.existsSync("uploads/")) {
-      fs.mkdirSync("uploads/");
-    }
-    cb(null, "uploads/");
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/');
   },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + path.extname(file.originalname));
-  },
-});
-
-// Configure multer with file size limits and proper error handling
-const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 2000 * 1024 * 1024, // 2GB max file size
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
   }
 });
 
-// Environment variables
-const STORAGE_ZONE = process.env.STORAGE_ZONE;
-const STORAGE_API_KEY = process.env.STORAGE_API_KEY;
-const BUNNY_API_URL = process.env.BUNNY_API_URL;
+const upload = multer({ storage });
 
-// DNS lookup promise for network connectivity check
-const dnsLookup = promisify(dns.lookup);
+// Environment variables for Bunny.net
+const BUNNY_STORAGE_NAME = process.env.BUNNY_STORAGE_NAME;
+const BUNNY_STORAGE_ZONE = process.env.BUNNY_STORAGE_ZONE;
+const BUNNY_STREAM_LIBRARY_ID = process.env.BUNNY_STREAM_LIBRARY_ID;
+const BUNNY_STREAM_API_KEY = process.env.BUNNY_STREAM_API_KEY;
+const BUNNY_STORAGE_API_KEY = process.env.BUNNY_STORAGE_API_KEY;
 
-// Network connectivity check function
-async function checkConnectivity() {
+
+async function uploadToBunnyStorage(filePath, fileName) {
   try {
-    await dnsLookup("storage.bunnycdn.com");
-    return true;
-  } catch (error) {
-    console.error("Network connectivity issue detected:", error.message);
-    return false;
-  }
-}
-
-// Create custom axios instance with optimized settings for Render
-const axiosInstance = axios.create({
-  timeout: 120000, // 2 minutes default timeout
-  maxContentLength: Infinity,
-  maxBodyLength: Infinity
-});
-
-// Axios retry interceptor
-axiosInstance.interceptors.response.use(null, async (error) => {
-  const config = error.config;
-  
-  // If config doesn't exist or retries not set, reject
-  if (!config || !config.retry) {
-    return Promise.reject(error);
-  }
-  
-  // Set retry count
-  config.retryCount = config.retryCount || 0;
-  
-  // Check if we've maxed out the total retry count
-  if (config.retryCount >= config.retry) {
-    return Promise.reject(error);
-  }
-  
-  // Increase retry count
-  config.retryCount += 1;
-  
-  // Check network connectivity before retrying
-  const isConnected = await checkConnectivity();
-  if (!isConnected) {
-    console.log("No network connectivity, waiting longer before retry...");
-    await new Promise((resolve) => setTimeout(resolve, 5000)); // Wait 5 seconds
-  }
-  
-  // Create new promise to handle retry with backoff
-  const backoff = new Promise((resolve) => {
-    const delay = config.retryDelay * Math.pow(1.5, config.retryCount - 1); // Exponential backoff
-    console.log(`Retrying request (${config.retryCount}/${config.retry}), waiting ${delay}ms...`);
-    setTimeout(() => {
-      resolve();
-    }, delay);
-  });
-  
-  // Wait for backoff then retry request
-  await backoff;
-  return axiosInstance(config);
-});
-
-// Memory-efficient direct upload to BunnyCDN storage
-async function uploadToBunny(filePath, storageZoneName, accessKey, progressCallback) {
-  const fileName = path.basename(filePath);
-  const uploadUrl = `https://storage.bunnycdn.com/${storageZoneName}/${fileName}`;
-  const fileSize = fs.statSync(filePath).size;
-  const fileType = mime.lookup(filePath) || "application/octet-stream";
-  
-  console.log(`Starting upload to BunnyCDN: ${fileName}, Size: ${(fileSize / (1024 * 1024)).toFixed(2)} MB`);
-  
-  try {
-    // Create readable stream instead of loading the file into memory
+    console.log(`Uploading ${fileName} to Bunny Storage...`);
+    
     const fileStream = fs.createReadStream(filePath);
     
-    // Set up upload with progress tracking
-    let uploadedBytes = 0;
-    let lastLogged = 0;
+    // The correct format for Bunny Storage API
+    const url = `https://${BUNNY_STORAGE_ZONE}.storage.bunnycdn.com/${BUNNY_STORAGE_NAME}/${fileName}`;
+    console.log('Storage upload URL:', url);
     
-    // Wrap the stream to track progress (memory efficient way)
-    const progressStream = new (require('stream').Transform)({
-      transform(chunk, encoding, callback) {
-        uploadedBytes += chunk.length;
-        
-        // Report progress less frequently to reduce CPU usage
-        const percent = (uploadedBytes / fileSize) * 100;
-        if (percent - lastLogged >= 5 || percent >= 99.9) { // Log every 5% or at completion
-          lastLogged = percent;
-          if (typeof progressCallback === 'function') {
-            progressCallback(percent, uploadedBytes, fileSize);
-          }
-        }
-        
-        this.push(chunk);
-        callback();
-      }
-    });
-    
-    // Pipe the file through our progress tracker
-    fileStream.pipe(progressStream);
-    
-    // Use axios for the upload with optimized settings
-    const response = await axiosInstance.put(uploadUrl, progressStream, {
-      headers: {
-        'AccessKey': accessKey,
-        'Content-Type': fileType,
-        'Content-Length': fileSize
-      },
-      // Render-specific optimizations
-      timeout: 3600000, // 1 hour timeout
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity,
-      retry: 3,
-      retryDelay: 10000 // 10 seconds between retries
-    });
-    
-    // Ensure 100% progress is reported
-    if (typeof progressCallback === 'function') {
-      progressCallback(100, fileSize, fileSize);
-    }
-    
-    console.log(`Upload completed successfully: ${fileName}`);
-    return { success: true, fileName };
-  } catch (error) {
-    console.error(`Upload failed: ${error.message}`);
-    throw error;
-  }
-}
-
-// Get videos from BunnyCDN storage
-async function listVideos(storageZoneName, accessKey, folder = "") {
-  try {
-    const url = `https://storage.bunnycdn.com/${storageZoneName}/${folder}`;
-    
-    const response = await axiosInstance.get(url, {
-      headers: {
-        'AccessKey': accessKey
-      },
-      timeout: 20000,
-      retry: 2,
-      retryDelay: 5000
-    });
-    
-    // Filter for video files
-    const videoFiles = response.data.filter(file => 
-      file.ObjectName.match(/\.(mp4|mov|avi|mkv|webm)$/i)
-    );
-    
-    return videoFiles;
-  } catch (error) {
-    console.error("Failed to list videos:", error.response?.data || error.message);
-    throw error;
-  }
-}
-
-// Get video details
-async function getVideoDetails(storageZoneName, path, apiKey) {
-  try {
-    const response = await axiosInstance.get(
-      `https://storage.bunnycdn.com/${storageZoneName}/${path}`,
+    const response = await axios.put(
+      url,
+      fileStream,
       {
         headers: {
-          'AccessKey': apiKey,
-        },
-        timeout: 20000
+          // For Bunny Storage, we use the Storage API key
+          'AccessKey': BUNNY_STORAGE_API_KEY,
+          'Content-Type': 'application/octet-stream'
+        }
       }
     );
-    return response.data;
+    
+    console.log('Upload to Bunny Storage successful');
+    return `https://${BUNNY_STORAGE_ZONE}.storage.bunnycdn.com/${BUNNY_STORAGE_NAME}/${fileName}`;
   } catch (error) {
-    console.error('Error getting video details:', error.response?.data || error.message);
-    return null;
+    console.error('Error uploading to Bunny Storage:', error.response ? error.response.data : error);
+    throw error;
   }
 }
 
-// Middleware to check connectivity before processing requests
-app.use(async (req, res, next) => {
-  if (req.path === "/check-connectivity" || req.path === "/health") {
-    return next(); // Skip check for these endpoints
-  }
-  
-  // Skip connectivity check for OPTIONS requests (CORS preflight)
-  if (req.method === 'OPTIONS') {
-    return next();
-  }
-  
-  // Skip connectivity check for static files
-  if (req.path.startsWith('/public/') || req.path === '/' || req.path.endsWith('.js') || req.path.endsWith('.css')) {
-    return next();
-  }
-  
-  const isConnected = await checkConnectivity();
-  if (!isConnected) {
-    return res.status(503).json({
-      error: "Network connectivity issue",
-      message: "Unable to reach Bunny.net servers. Please check your internet connection."
-    });
-  }
-  next();
-});
-
-// Health check endpoint for Render
-app.get("/health", (req, res) => {
-  res.status(200).json({ status: "healthy", timestamp: new Date().toISOString() });
-});
-
-// Connectivity check endpoint
-app.get("/check-connectivity", async (req, res) => {
-  const isConnected = await checkConnectivity();
-  res.status(200).json({
-    connected: isConnected,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Upload endpoint
-app.post("/upload", upload.single("video"), async (req, res) => {
-  // Create a unique upload ID
-  const uploadId = Date.now().toString();
-  
-  // Initialize progress tracking
-  const progressData = {
-    progress: 0,
-    bytesUploaded: 0,
-    bytesTotal: 0,
-    status: "preparing",
-    error: null,
-    startTime: new Date().toISOString()
-  };
-  
-  // Store the progress data
-  if (!global.uploadProgress) {
-    global.uploadProgress = new Map();
-  }
-  global.uploadProgress.set(uploadId, progressData);
-  
-  // Send immediate response with upload ID (important for Render)
-  res.status(202).json({
-    uploadId: uploadId,
-    message: "Upload started",
-    statusUrl: `/upload-status/${uploadId}`
-  });
-  
-  // Process upload in background
-  (async function() {
-    try {
-      if (!req.file) {
-        progressData.status = "failed";
-        progressData.error = "No video file uploaded";
-        return;
-      }
-      
-      const filePath = req.file.path;
-      const fileSize = fs.statSync(filePath).size;
-      
-      // Update progress tracking
-      progressData.status = "uploading";
-      progressData.bytesTotal = fileSize;
-      global.uploadProgress.set(uploadId, progressData);
-      
-      console.log(`Processing file: ${path.basename(filePath)}, Size: ${(fileSize / (1024 * 1024)).toFixed(2)} MB`);
-      
-      // Define progress callback
-      const progressCallback = (percent, bytesUploaded, bytesTotal) => {
-        if (global.uploadProgress && global.uploadProgress.has(uploadId)) {
-          const progressObj = global.uploadProgress.get(uploadId);
-          progressObj.progress = percent;
-          progressObj.bytesUploaded = bytesUploaded;
-          progressObj.bytesTotal = bytesTotal || progressObj.bytesTotal;
-          
-          global.uploadProgress.set(uploadId, progressObj);
-        }
-      };
-      
-      try {
-        // Upload to BunnyCDN
-        const videoData = await uploadToBunny(
-          filePath,
-          STORAGE_ZONE,
-          STORAGE_API_KEY,
-          progressCallback
-        );
-        
-        console.log("Video created in Bunny.net:", videoData);
-        
-        // Final update after successful upload
-        if (global.uploadProgress && global.uploadProgress.has(uploadId)) {
-          const progressObj = global.uploadProgress.get(uploadId);
-          progressObj.status = "completed";
-          progressObj.progress = 100;
-          progressObj.bytesUploaded = progressObj.bytesTotal;
-          progressObj.videoId = videoData.fileName;
-          progressObj.completedAt = new Date().toISOString();
-          global.uploadProgress.set(uploadId, progressObj);
-        }
-      } catch (uploadError) {
-        if (global.uploadProgress && global.uploadProgress.has(uploadId)) {
-          const progressObj = global.uploadProgress.get(uploadId);
-          progressObj.status = "failed";
-          progressObj.error = `Upload failed: ${uploadError.message}`;
-          global.uploadProgress.set(uploadId, progressObj);
-        }
-        console.error("Upload failed:", uploadError.message);
-      }
-      
-      // Clean up temporary file regardless of success/failure
-      try {
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-          console.log(`Temporary file deleted: ${filePath}`);
-        }
-      } catch (cleanupError) {
-        console.error("Error cleaning up temporary file:", cleanupError);
-      }
-    } catch (error) {
-      console.error("Upload process failed:", error);
-      if (global.uploadProgress && global.uploadProgress.has(uploadId)) {
-        const progressObj = global.uploadProgress.get(uploadId);
-        progressObj.status = "failed";
-        progressObj.error = error.message;
-        global.uploadProgress.set(uploadId, progressObj);
-      }
-      
-      // Clean up temp file if it exists
-      try {
-        if (req.file && fs.existsSync(req.file.path)) {
-          fs.unlinkSync(req.file.path);
-        }
-      } catch (e) {
-        console.error("Error cleaning up temporary file:", e);
-      }
-    }
-  })().catch(err => console.error("Unhandled error in upload process:", err));
-});
-
-// Upload status endpoint
-app.get("/upload-status/:uploadId", (req, res) => {
-  const uploadId = req.params.uploadId;
-  
-  if (!global.uploadProgress || !global.uploadProgress.has(uploadId)) {
-    return res.status(404).json({
-      error: "Upload not found"
-    });
-  }
-  
-  const progressData = global.uploadProgress.get(uploadId);
-  
-  // Schedule cleanup for completed or failed uploads
-  if (progressData.status === "completed" || progressData.status === "failed") {
-    setTimeout(() => {
-      if (global.uploadProgress && global.uploadProgress.has(uploadId)) {
-        global.uploadProgress.delete(uploadId);
-      }
-    }, 30 * 60 * 1000); // 30 minutes
-  }
-  
-  res.status(200).json(progressData);
-});
-
-// Videos list endpoint
-app.get("/videos", async (req, res) => {
+// Create a Bunny Stream video
+async function createBunnyStreamVideo(title) {
   try {
-    const videos = await listVideos(STORAGE_ZONE, STORAGE_API_KEY);
-    res.status(200).json(videos);
+    console.log('Creating Bunny Stream video entry...');
+    
+    const response = await axios.post(
+      `https://video.bunnycdn.com/library/${BUNNY_STREAM_LIBRARY_ID}/videos`,
+      { title },
+      {
+        headers: {
+          'AccessKey': BUNNY_STREAM_API_KEY,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    
+    console.log('Created Bunny Stream video entry');
+    return response.data;
   } catch (error) {
-    console.error("Error fetching videos:", error);
-    res.status(500).json({
-      error: "Failed to fetch videos",
-      details: error.message,
-      recommendation: error.message.includes("Network")
-        ? "Please check your internet connection and try again"
-        : "Please try again later"
-    });
+    console.error('Error creating Bunny Stream video:', error.response ? error.response.data : error);
+    throw error;
   }
-});
+}
 
-// Video details endpoint
-app.get("/videos/:videoId", async (req, res) => {
+// Upload directly to Bunny Stream
+async function uploadToBunnyStream(filePath, videoId) {
   try {
-    const videoDetails = await getVideoDetails(STORAGE_ZONE, req.params.videoId, STORAGE_API_KEY);
+    console.log(`Uploading video to Bunny Stream with ID: ${videoId}...`);
     
-    if (!videoDetails) {
-      return res.status(404).json({ error: "Video not found" });
-    }
+    const fileStream = fs.createReadStream(filePath);
     
-    res.status(200).json(videoDetails);
+    const response = await axios.put(
+      `https://video.bunnycdn.com/library/${BUNNY_STREAM_LIBRARY_ID}/videos/${videoId}`,
+      fileStream,
+      {
+        headers: {
+          'AccessKey': BUNNY_STREAM_API_KEY,
+          'Content-Type': 'application/octet-stream'
+        }
+      }
+    );
+    
+    console.log('Upload to Bunny Stream successful');
+    return response.data;
   } catch (error) {
-    console.error("Error fetching video details:", error);
-    res.status(500).json({
-      error: "Failed to fetch video details",
-      details: error.message
-    });
+    console.error('Error uploading to Bunny Stream:', error.response ? error.response.data : error);
+    throw error;
   }
-});
+}
 
-// Serve the index page
+// Import from URL to Bunny Stream
+async function importToBunnyStream(sourceUrl, videoId) {
+  try {
+    console.log(`Importing video from URL to Bunny Stream...`);
+    console.log('Source URL:', sourceUrl);
+    console.log('Video ID:', videoId);
+    
+    const response = await axios.post(
+      `https://video.bunnycdn.com/library/${BUNNY_STREAM_LIBRARY_ID}/videos/${videoId}/import`,
+      { url: sourceUrl },
+      {
+        headers: {
+          'AccessKey': BUNNY_STREAM_API_KEY,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    
+    console.log('Import to Bunny Stream initiated');
+    return response.data;
+  } catch (error) {
+    console.error('Error importing to Bunny Stream:', error.response ? error.response.data : error);
+    throw error;
+  }
+}
+
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// Start the server
-const PORT = process.env.PORT || 3000;
+// Alternate approach: Skip storage and upload directly to Stream
+app.post('/upload', upload.single('video'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+    
+    console.log('File received:', req.file.path, 'Size:', req.file.size);
+    
+    // Option 1: Use Storage + Stream approach
+    try {
+      // 1. Create a video entry in Bunny Stream
+      const videoData = await createBunnyStreamVideo(req.file.originalname);
+      console.log('Video entry created with ID:', videoData.guid);
+      
+      // Try direct upload to Stream first as it's simpler
+      await uploadToBunnyStream(req.file.path, videoData.guid);
+      
+      // Delete local file
+      fs.unlinkSync(req.file.path);
+      
+      res.json({
+        success: true,
+        message: 'Video uploaded directly to Stream',
+        videoId: videoData.guid,
+        videoData
+      });
+    } catch (directUploadError) {
+      console.error('Direct upload to Stream failed, trying Storage approach:', directUploadError);
+      
+      // Option 2: Storage + Stream approach as fallback
+      try {
+        // 1. Create a video entry in Bunny Stream
+        const videoData = await createBunnyStreamVideo(req.file.originalname);
+        console.log('Video entry created with ID:', videoData.guid);
+        
+        // 2. Upload to Bunny Storage for backup/archive
+        const storageUrl = await uploadToBunnyStorage(req.file.path, req.file.filename);
+        console.log('Storage URL:', storageUrl);
+        
+        // 3. Import from Bunny Storage URL to Bunny Stream
+        await importToBunnyStream(storageUrl, videoData.guid);
+        console.log('Import from Storage to Stream initiated');
+        
+        // Delete local file
+        fs.unlinkSync(req.file.path);
+        
+        res.json({
+          success: true,
+          message: 'Video uploaded via Storage and now processing',
+          videoId: videoData.guid,
+          videoData
+        });
+      } catch (error) {
+        throw error; // Pass to outer catch block
+      }
+    }
+  } catch (error) {
+    console.error('Error in upload process:', error);
+    
+    // Clean up the file if it exists
+    try {
+      if (req.file && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+    } catch (cleanupError) {
+      console.error('Error cleaning up file:', cleanupError);
+    }
+    
+    res.status(500).json({ success: false, message: 'Upload failed', error: error.message });
+  }
+});
+
+// Get video info
+app.get('/video/:videoId', async (req, res) => {
+  try {
+    const response = await axios.get(
+      `https://video.bunnycdn.com/library/${BUNNY_STREAM_LIBRARY_ID}/videos/${req.params.videoId}`,
+      {
+        headers: {
+          'AccessKey': BUNNY_STREAM_API_KEY
+        }
+      }
+    );
+    
+    res.json({ success: true, video: response.data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to get video info', error: error.message });
+  }
+});
+
+// Get all videos
+app.get('/videos', async (req, res) => {
+  try {
+    const response = await axios.get(
+      `https://video.bunnycdn.com/library/${BUNNY_STREAM_LIBRARY_ID}/videos`,
+      {
+        headers: {
+          'AccessKey': BUNNY_STREAM_API_KEY
+        }
+      }
+    );
+    data = response.data.items
+    console.log(data)
+    
+    res.json({data});
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to get videos', error: error.message });
+  }
+});
+
+// Create uploads directory if it doesn't exist
+if (!fs.existsSync('uploads')) {
+  fs.mkdirSync('uploads');
+}
+
+// Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`Video upload server is ready to handle uploads up to 2GB`);
 });

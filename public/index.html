@@ -457,38 +457,46 @@
               throw new Error("Failed to fetch videos");
             }
 
-            const data = await response.json();
+            const result = await response.json();
+            const data = result.data
             const videosContainer = document.getElementById("videos-container");
             videosContainer.innerHTML = "";
-            console.log(data.length);
 
             if (data && data.length > 0) {
               data.forEach((video) => {
                 const videoElement = document.createElement("div");
                 videoElement.className = "video-item";
+                console.log(video)
 
-                // Direct Storage Zone MP4 URL (e.g., BunnyCDN public URL)
-                const videoUrl = `https://learningplatform.b-cdn.net/${video.ObjectName}`; // assuming `fileName` contains '1744474755334.mp4'
+                // Constructing the iframe URL using BunnyCDN embed URL
+                const iframeUrl = `https://iframe.mediadelivery.net/embed/408739/${video.guid}`;
 
-                const playerHtml = `
-                    <video class="player" controls width="100%" preload="metadata">
-                        <source src="${videoUrl}" type="video/mp4">
-                        Your browser does not support the video tag.
-                    </video>
-                `;
+                // Creating the iframe HTML
+                const iframeHtml = `
+            <iframe 
+              class="player" 
+              width="${video.width}%" 
+              height="auto" 
+              src="${iframeUrl}" 
+              frameborder="0" 
+              allow="autoplay; fullscreen" 
+              title="${video.ObjectName || "Video Player"}">
+            </iframe>
+        `;
 
+                // Inserting the iframe and other video details into the video element
                 videoElement.innerHTML = `
-                    <h3>${video.ObjectName || "Untitled Video"}</h3>
-                    ${playerHtml}
-                    <p><strong>Size:</strong> ${(
-                      video.Length /
-                      (1024 * 1024)
-                    ).toFixed(2)} MB</p>
-                    <p><strong>Last Modified:</strong> ${new Date(
-                      video.LastChanged
-                    ).toLocaleString()}</p>
-                `;
+          <h3>${video.title || "Untitled Video"}</h3>
+          ${iframeHtml}
+          <p><strong>Size:</strong> ${(video.storageSize / (1024 * 1024)).toFixed(
+            2
+          )} MB</p>
+          <p><strong>Last Modified:</strong> ${new Date(
+            video.dateUploaded
+          ).toLocaleString()}</p>
+        `;
 
+                // Append the video element to the container
                 videosContainer.appendChild(videoElement);
               });
             } else {
